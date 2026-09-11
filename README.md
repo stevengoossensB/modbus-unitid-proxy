@@ -19,7 +19,6 @@ Configuration is through environment variables:
 | `LISTEN_PORT` | `1502` | Local TCP port (use a high port when running unprivileged) |
 | `UPSTREAM_HOST` | `127.0.0.1` | Inverter/server address |
 | `UPSTREAM_PORT` | `502` | Inverter/server TCP port |
-| `UPSTREAM_TIMEOUT` | `5` | Seconds to wait for each upstream response before closing the client connection |
 | `LOG_LEVEL` | `INFO` | Python logging level |
 
 Port values must be integers from 1 through 65535. The default container port
@@ -42,9 +41,11 @@ requirements. The image runs as the unprivileged `nobody` user.
 
 ## Protocol and failure behavior
 
-* TCP fragmentation and multiple complete requests per connection are handled.
-* Each client gets an independent upstream connection, so clients can operate
-  concurrently without sharing request/response Unit-ID state.
+* TCP fragmentation, multiple complete requests, retries while a response is
+  pending, and concurrent clients are handled.
+* The proxy relays requests and responses independently and matches replies by
+  Modbus transaction ID, which allows Huawei Solar-style retries on one TCP
+  connection.
 * Invalid MBAP protocol IDs or lengths, truncated frames, and upstream
   disconnects close the affected client connection. No malformed data is
   forwarded.
@@ -54,9 +55,6 @@ requirements. The image runs as the unprivileged `nobody` user.
   transaction matching, or application semantics. It assumes the upstream
   returns one response for each request, in order, and preserves the MBAP
   header fields other than Unit ID.
-* An upstream response timeout closes the affected client connection. This lets
-  clients such as the Huawei Solar library reconnect and retry instead of being
-  stuck behind an unanswered upstream request.
 * There is no authentication, encryption, or allow-list. Keep it on a trusted
   network and use network/firewall controls as appropriate.
 * This is a Unit-ID mapper, not a Modbus gateway: it does not translate serial
