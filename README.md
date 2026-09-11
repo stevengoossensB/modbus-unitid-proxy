@@ -19,6 +19,7 @@ Configuration is through environment variables:
 | `LISTEN_PORT` | `1502` | Local TCP port (use a high port when running unprivileged) |
 | `UPSTREAM_HOST` | `127.0.0.1` | Inverter/server address |
 | `UPSTREAM_PORT` | `502` | Inverter/server TCP port |
+| `UPSTREAM_TIMEOUT` | `5` | Seconds to wait for each upstream response before closing the client connection |
 | `LOG_LEVEL` | `INFO` | Python logging level |
 
 Port values must be integers from 1 through 65535. The default container port
@@ -53,8 +54,11 @@ requirements. The image runs as the unprivileged `nobody` user.
   transaction matching, or application semantics. It assumes the upstream
   returns one response for each request, in order, and preserves the MBAP
   header fields other than Unit ID.
-* There is no authentication, encryption, allow-list, or request timeout. Keep
-  it on a trusted network and use network/firewall controls as appropriate.
+* An upstream response timeout closes the affected client connection. This lets
+  clients such as the Huawei Solar library reconnect and retry instead of being
+  stuck behind an unanswered upstream request.
+* There is no authentication, encryption, or allow-list. Keep it on a trusted
+  network and use network/firewall controls as appropriate.
 * This is a Unit-ID mapper, not a Modbus gateway: it does not translate serial
   addressing or multiplex several upstream devices.
 

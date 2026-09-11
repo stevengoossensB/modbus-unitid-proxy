@@ -62,6 +62,7 @@ async def handle_client(
     *,
     upstream_host: str,
     upstream_port: int,
+    upstream_timeout: float = 5.0,
 ) -> None:
     peer = client_writer.get_extra_info("peername")
     upstream_writer = None
@@ -79,7 +80,9 @@ async def handle_client(
             upstream_writer.write(request)
             await upstream_writer.drain()
 
-            response_header, response_payload = await read_frame(upstream_reader)
+            response_header, response_payload = await asyncio.wait_for(
+                read_frame(upstream_reader), timeout=upstream_timeout
+            )
             # The upstream is expected to preserve the request transaction, protocol,
             # length, and PDU. Only the Unit ID is intentionally changed here.
             response = mapped_response(response_header, response_payload, client_unit)
@@ -101,6 +104,7 @@ async def run(config: argparse.Namespace) -> None:
             w,
             upstream_host=config.upstream_host,
             upstream_port=config.upstream_port,
+            upstream_timeout=config.upstream_timeout,
         ),
         config.listen_host,
         config.listen_port,
@@ -124,12 +128,26 @@ def env_int(name: str, default: int) -> int:
     return number
 
 
+def env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        number = float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number") from exc
+    if number <= 0:
+        raise ValueError(f"{name} must be greater than zero")
+    return number
+
+
 def config_from_env() -> argparse.Namespace:
     return argparse.Namespace(
         listen_host=os.getenv("LISTEN_HOST", "0.0.0.0"),
         listen_port=env_int("LISTEN_PORT", 1502),
         upstream_host=os.getenv("UPSTREAM_HOST", "127.0.0.1"),
         upstream_port=env_int("UPSTREAM_PORT", 502),
+        upstream_timeout=env_float("UPSTREAM_TIMEOUT", 5.0),
     )
 
 
