@@ -45,13 +45,20 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         if hasattr(self, "proxy_server"):
             self.proxy_server.close()
             await self.proxy_server.wait_closed()
+        if hasattr(self, "shared_upstream"):
+            await self.shared_upstream.close()
         if hasattr(self, "upstream"):
             await self.upstream.close()
 
     async def start_proxy(self, upstream_port):
+        self.shared_upstream = proxy.SharedUpstream("127.0.0.1", upstream_port)
         self.proxy_server = await asyncio.start_server(
             lambda r, w: proxy.handle_client(
-                r, w, upstream_host="127.0.0.1", upstream_port=upstream_port
+                r,
+                w,
+                upstream_host="127.0.0.1",
+                upstream_port=upstream_port,
+                upstream=self.shared_upstream,
             ),
             "127.0.0.1",
             0,
@@ -120,6 +127,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
             return result
 
         results = await asyncio.gather(client(1, 1), client(2, 253))
+        self.assertEqual(self.upstream.connections, 1)
         self.assertEqual(results[0], [self.frame(1, 1, b"\x06\x00\x01\x00\x02"), self.frame(2, 1, b"\x03\x00\x00\x00\x01")])
         self.assertEqual(results[1], [self.frame(2, 253, b"\x06\x00\x01\x00\x02"), self.frame(3, 253, b"\x03\x00\x00\x00\x01")])
 
