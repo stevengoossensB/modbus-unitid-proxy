@@ -1,0 +1,12 @@
+services:
+  modbus-unitid-proxy:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "502:1502/tcp"
+    environment:
+      LISTEN_HOST: "0.0.0.0"
+      LISTEN_PORT: "1502"
+      UPSTREAM_HOST: "192.0.2.10"
+      UPSTREAM_PORT: "502"
+      LOG_LEVEL: "INFO"
