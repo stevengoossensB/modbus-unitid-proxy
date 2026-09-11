@@ -70,13 +70,21 @@ async def handle_client(
         while True:
             client_header, client_payload = await read_frame(client_reader)
             client_unit, request = mapped_request(client_header, client_payload)
+            LOG.debug(
+                "request peer=%s client_unit=%d upstream_frame=%s",
+                peer,
+                client_unit,
+                request.hex(),
+            )
             upstream_writer.write(request)
             await upstream_writer.drain()
 
             response_header, response_payload = await read_frame(upstream_reader)
             # The upstream is expected to preserve the request transaction, protocol,
             # length, and PDU. Only the Unit ID is intentionally changed here.
-            client_writer.write(mapped_response(response_header, response_payload, client_unit))
+            response = mapped_response(response_header, response_payload, client_unit)
+            LOG.debug("response peer=%s client_frame=%s", peer, response.hex())
+            client_writer.write(response)
             await client_writer.drain()
     except (asyncio.IncompleteReadError, InvalidFrame, ConnectionError, OSError) as exc:
         if not isinstance(exc, asyncio.IncompleteReadError) or exc.partial:
