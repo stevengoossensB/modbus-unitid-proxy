@@ -123,6 +123,32 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0], [self.frame(1, 1, b"\x06\x00\x01\x00\x02"), self.frame(2, 1, b"\x03\x00\x00\x00\x01")])
         self.assertEqual(results[1], [self.frame(2, 253, b"\x06\x00\x01\x00\x02"), self.frame(3, 253, b"\x03\x00\x00\x00\x01")])
 
+    async def test_retry_while_first_response_pending(self):
+        async def handler(reader, writer):
+            first = await self.read_frame(reader)
+            second = await self.read_frame(reader)
+            self.assertEqual(first[6], 0)
+            self.assertEqual(second[6], 0)
+            response = second[:6] + b"\x00" + second[7:]
+            writer.write(response)
+            await writer.drain()
+
+        self.upstream = FakeUpstream(handler)
+        upstream_port = await self.upstream.start()
+        port = await self.start_proxy(upstream_port)
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        first = self.frame(1, 1, b"\x03\x75\x30\x00\x0f")
+        second = self.frame(2, 1, b"\x03\x75\x30\x00\x0f")
+        writer.write(first)
+        await writer.drain()
+        await asyncio.sleep(0.01)
+        writer.write(second)
+        await writer.drain()
+        response = await self.read_frame(reader)
+        self.assertEqual(response, second)
+        writer.close()
+        await writer.wait_closed()
+
     async def test_malformed_frame_closes_connection(self):
         async def handler(reader, writer):
             await asyncio.sleep(1)
